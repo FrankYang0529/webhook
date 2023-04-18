@@ -26,6 +26,17 @@ func (fv *featureValidator) Admit(response *webhook.Response, request *webhook.R
 		return err
 	}
 
+	if oldFeature.Name == "multi-cluster-management" && !isValidMCMFeatureValue(oldFeature.Status.Default, oldFeature.Spec.Value, newFeature.Spec.Value) {
+		response.Result = &metav1.Status{
+			Status:  "Failure",
+			Message: "mcm feature flag cannot be changed from true to false",
+			Reason:  metav1.StatusReasonInvalid,
+			Code:    http.StatusBadRequest,
+		}
+		response.Allowed = false
+		return nil
+	}
+
 	if !isValidFeatureValue(newFeature.Status.LockedValue, oldFeature.Spec.Value, newFeature.Spec.Value) {
 		response.Result = &metav1.Status{
 			Status:  "Failure",
@@ -61,4 +72,14 @@ func isValidFeatureValue(lockedValue *bool, oldSpecValue *bool, desiredSpecValue
 	}
 
 	return false
+}
+
+// isValidMCMFeatureValue checks whether users change MCM feature value from true to false.
+func isValidMCMFeatureValue(defaultValue bool, oldSpecValue, desiredSpecValue *bool) bool {
+	if defaultValue || (oldSpecValue != nil && *oldSpecValue) {
+		if desiredSpecValue != nil && !*desiredSpecValue {
+			return false
+		}
+	}
+	return true
 }
